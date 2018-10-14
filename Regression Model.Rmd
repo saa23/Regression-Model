@@ -1,0 +1,184 @@
+---
+title: 'Regression Models'
+author: "Achmad Gunar Saadi"
+date: "August 4, 2018"
+output:
+  html_document:
+    highlight: pygments
+    number_sections: yes
+    theme: spacelab
+    toc: yes
+    toc_depth: 3
+    toc_float:
+      collapsed: no
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+editor_options:
+  chunk_output_type: inline
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Introduction {.tabset}
+## Objectives
+__Project: Regression Models__<br />
+
+Write a regression analysis report. Using the dataset provided by you, write your findings on the different socioeconomics variables most highly correlated to crime rates (*__crime_rate__*). Explain the recommendations where appropriate. As guidance, ask the following questions of your candidate model:<br />
+
+* Can your model be any more simplified without losing substantial information?<br />
+* Have you tried predicting the crime rate given a reasonable set of values for the predictor variable?<br />
+* Have you identified any non-random pattern in your residual plot?<br />
+
+The model has to answer the indicators as follow:<br />
+1. The model achieves an adjusted R-squared value above the grading threshold of 0.701<br />
+2. The residual plot resembles a random scatterplot<br />
+
+## Read and understand the Dataset
+This is how the data look like (I only display the first 10 data). I also rename the variable names, to get more explaining names.
+```{r}
+library(dplyr) 
+crime <- read.csv("./crime.csv") %>% dplyr::select(-X)
+names(crime) <- c("percent_m", "is_south", "mean_education", "police_exp60", "police_exp59", "labour_participation", "m_per1000f", "state_pop", "nonwhites_per1000", "unemploy_m24", "unemploy_m39", "gdp", "inequality", "prob_prison", "time_prison", "crime_rate")
+head(crime,10)
+```
+
+## Data Explanation
+
+As mentioned in the *__Read and understand the Dataset__* section, I rename the variable names, so that easier to remember.<br />
+Dataset was collected in 1960. There are 16 variables inside of the dataset. Those variables are as follow:<br />
+
+- **M** renamed to **percent_m** --- percentage of males aged 14-24 <br />
+- **So** renamed to **is_south: whether** --- whether it is in a Southern state. 1 for Yes, 0 for No.<br />
+- **Ed** renamed to **mean_education** --- mean years of schooling <br />
+- **Po1** renamed to **police_exp60** --- police expenditure in 1960<br />
+- **Po2** renamed to **police_exp59** --- police expenditure in 1959 <br />
+- **LF** renamed to **labour_participation** --- labour force participation rate<br />
+- **M.F** renamed to **m_per1000f** --- number of males per 1000 females<br />
+- **Pop** renamed to **state_pop** --- state population <br />
+- **NW** renamed to **nonwhites_per1000** --- number of non-whites resident per 1000 people <br />
+- **U1** renamed to **unemploy_m24** --- unemployment rate of urban males aged 14-24 <br />
+- **U2**renamed to **unemploy_m39** --- unemployment rate of urban males aged 35-39 <br />
+- **GDP** renamed to **gdp** --- gross domestic product per head  <br />
+- **Ineq** renamed to **inequality** --- income inequality <br />
+- **Prob** renamed to **prob_prison** --- probability of imprisonment <br />
+- **Time** renamed to **time_prison** --- avg time served in prisons <br />
+- **y** renamed to **crime_rate** --- crime rate in an unspecified category <br />
+
+# Exploring the Data
+## Quick Look the data
+For the first insight, let's quick-look the scatterplot, check the relationship (correlation) of each variables with respect to crime rate, and the impact of the variables with crime rate by their gradient values.
+```{r}
+library(GGally)
+pairs(crime)
+ggcorr(crime, label = T,label_size = 2, hjust=1)
+summary(lm(crime_rate~.,crime))
+```
+From the pairs() function we can tell that the the variables that have quite high correlation with crime rate are: <br />
++ mean education <br />
++ police expenditure <br />
++ gdp <br />
++ unemployment rate <br />
++ time prison <br />
+
+Several of those variables are confirmed by the value of ggcor() function result, as follow:<br />
++ police_exp60 (0.7)<br />
++ police_exp59 (0.7)<br />
++ gdp (0.4)<br />
++ state_pop (0.3)<br />
++ mean_education (0.3)<br />
++ prob_prison(-0.4)<br />
+
+While considering from susmmary of lm() function, the recommended variables (indicated by the gradient value and statistical significance value) as below:<br />
++ police_exp60 (19.28)<br />
++ mean_education (18.83)<br />
++ unemployment_m39 (16.78)<br />
++ percent_m (8.78)<br />
++ police_exp59 (-10.94)<br />
++ prob_prison (-4855)<br />
+
+## Feature Selection
+After that, we will try to select the proper features from now on using stepwise regression. The AIC determine which independent variables that can altogether give significant impact to the model (the least AIC the better).
+```{r}
+# backward elimination
+lin.all <- lm(crime_rate ~., crime)
+step(lin.all, direction="backward")
+```
+
+```{r}
+# Foward elimination
+lin.none <- lm(crime_rate ~ 1, crime)
+step(lin.none, scope=list( lower=lin.none,upper=lin.all), direction="forward")
+```
+
+```{r}
+# Both side elimination
+step(lin.none, scope = list(lower=lin.none,upper=lin.all), data=crime, direction="both")
+```
+As we get the least average AIC by using the **backward elimination method**, thus we go on using the result from it. The variable that selected from this method is:<br />
++ m_per1000f      
++ unemploy_m24    
++ prob_prison     
++ unemploy_m39    
++ percent_m       
++ mean_education 
++ inequality      
++ police_exp60   
+
+## Variables to focus
+From the quick look and feature selection, I suggest we may focus on these variables:<br />
++ police_exp60
++ unemploy_m39
++ mean_education            
++ prob_prison
++ inequality
++ percent_m
+
+Summary of the regression model using these variable as below:
+```{r}
+summary(lm(crime_rate~police_exp60+unemploy_m39+mean_education+prob_prison+inequality+percent_m,crime))
+```
+The R-squared value is **0.7659**  and adjusted R-squared is **0.7307** by using the selected variables.
+
+## Residual Plot
+This is the residual plot to evaluate the selected independent variables. The random pattern indicate that the model has fully captured the needed information.
+
+```{r}
+model <- lm(formula = crime_rate~police_exp60+unemploy_m39+mean_education+prob_prison+inequality+percent_m,data = crime)
+plot(crime$crime_rate,residuals(model))
+```
+
+## Predicting Crime Rate
+Considering the selected independent variables, there are variables that has positive gradient and negative gradient with respect to crime rate (from the summary of lm() function). The police_exp60 has the most positive gradient by 19.28 while the prob_prison has the most negative gradient by -4855.26. Therefore we try to illustrate this impact by predict the crime rate using variation of both variables.
+
+
+```{r}
+# Predicting crime rate
+# data.before will be the data reference.
+# data.after.exp --> variation data by increasing significantly the police_exp60, while other variables remain
+# data.after.prob --> variation data by increasing significantly the prob_prison, while other variables remain
+data.before<-data.frame(police_exp60=100,unemploy_m39=70,mean_education=128,prob_prison=0.08,inequality=260,percent_m=150)
+data.after.exp<-data.frame(police_exp60=300,unemploy_m39=70,mean_education=128,prob_prison=0.08,inequality=260,percent_m=150)
+data.after.prob<-data.frame(police_exp60=100,unemploy_m39=70,mean_education=128,prob_prison=0.1,inequality=260,percent_m=150)
+predict(model,data.before)
+predict(model,data.after.exp)
+predict(model,data.after.prob)
+```
+The variable data.before become the reference value. While from variable data.after.exp we can tell that the increasing of police_exp60 will affect the increasing of crime rate. On the other hand, the increasing of prob_prison affect the decreasing of crime rate just like described by data.after.prob variable.
+
+# Conclusion
+Recall the objectives of the assignment:<br />
+* Can your model be any more simplified without losing substantial information?<br />
+* Have you tried predicting the crime rate given a reasonable set of values for the predictor variable?<br />
+* Have you identified any non-random pattern in your residual plot?<br />
+
+As for the indicator as good results, as below:<br />
+1. The model achieves an adjusted R-squared value above the grading threshold of 0.701<br />
+2. The residual plot resembles a random scatterplot<br />
+
+From the processes above we can conclude that:<br />
+* The model have been simplified sufficiently by using just 6 independent variables. Those are:<br /> **__police_exp60, unemploy_m39, mean_education, prob_prison, inequality, percent_m__**<br />
+* The crime has been predicted by using the model in the previous section.<br />
+* There is no non-random pattern but resembles a random scatterplot in the residual plot which mean the model has fully captured the needed information.<br />
+* The model has R-squared value by **0.7659** and adjusted R-squared by **0.7307**.<br />
